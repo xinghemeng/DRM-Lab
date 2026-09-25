@@ -26,6 +26,24 @@
 #### 思路
 
 先把「显示管道」找齐，再碰缓冲。顺序不要反：没有 connector/mode/CRTC，dumb buffer 即使创建成功也无处可挂。
+V1 整条路（心里先有图）
+
+  Open device                    
+  FindConnected pipeline         
+  Create dumb + mmap
+  Fill color / gradient
+  Create fb
+  SetCrtc(fb, mode)
+  wait，然后 Restore + 析构
+
+  对应硬件扫描链：
+
+  进程 fd（card0）
+      → dumb handle → fb_id
+          → CRTC（按 mode 扫像素）
+              → encoder
+                  → connector（HDMI / eDP / DP）
+                      → 屏
 
 1. `open` 必须 `O_RDWR`（modeset 与 mmap 都需要写）。同时加 `O_CLOEXEC`。失败时打印 `errno`：`ENOENT` 是没这节点，`EACCES` 是权限，`EBUSY`/后续 ioctl 失败才更像被合成器占用。
 2. `drmModeGetResources` 拿到的是 **id 列表快照**，不是硬件的实时镜像。立刻把 connector id 拷出来，用完 `drmModeFreeResources`，不要把 `drmModeResPtr` 存进长期对象。
